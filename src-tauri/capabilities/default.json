@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilidades mínimas da janela principal do Local Agent Desktop.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:allow-open-url"
+  ]
+}

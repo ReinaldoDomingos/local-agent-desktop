@@ -1,0 +1,17 @@
+[Unit]
+Description=Local Agent Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/reinaldojunior/workspace/estudo/local-agent/local-agent-worker
+EnvironmentFile=/home/reinaldojunior/workspace/estudo/local-agent/local-agent-worker/.env
+ExecStart=/usr/bin/env npm start
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=default.target

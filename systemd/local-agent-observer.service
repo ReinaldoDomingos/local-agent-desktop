@@ -1,0 +1,17 @@
+[Unit]
+Description=Local Agent Observer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/reinaldojunior/workspace/estudo/local-agent/local-agent-observer
+EnvironmentFile=/home/reinaldojunior/workspace/estudo/local-agent/local-agent-observer/.env
+ExecStart=/usr/bin/env npm start
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=default.target

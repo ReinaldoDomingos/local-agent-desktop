@@ -1,0 +1,33 @@
+{
+  "name": "local-agent-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run validate:utf8 && tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:deb": "tauri build --bundles deb",
+    "test": "npm run validate:utf8 && vitest run",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "typecheck": "npm run validate:utf8 && tsc --noEmit",
+    "validate:utf8": "node scripts/validate-utf8.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Capabilidades mínimas da janela principal do Local Agent Desktop.","local":true,"windows":["main"],"permissions":["core:default","opener:allow-open-url"]}}
