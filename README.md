@@ -1,5 +1,9 @@
 # Local Agent Desktop
 
+O padrão transversal de stack e validação está em
+`../docs/ENGINEERING-STANDARD.md`; as regras para IA estão em
+`../docs/AI-RULES.md`.
+
 Aplicativo desktop Linux para consultar e controlar os serviços locais `worker` e `observer` do Local Agent. A aplicação usa Tauri 2, React, Vite e `systemd --user`.
 
 ## Funcionalidades
@@ -41,7 +45,7 @@ Sem essa variável, o Desktop procura o workspace nos diretórios ancestrais do 
 Execute os comandos dentro deste módulo:
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -57,9 +61,12 @@ Na primeira execução, compile os módulos `worker` e `observer`. Depois, use *
 
 ```bash
 npm test                 # testes TypeScript
+npm run validate:comments # comentários proibidos
+npm run lint             # ESLint do frontend
 npm run typecheck        # validação de tipos
 npm run test:rust        # testes Rust
 npm run build            # bundle web
+npm run validate         # gate completo do módulo
 npm run tauri:build      # AppImage e pacote .deb
 ```
 

@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "build": "npm run validate:utf8 && tsc && vite build",
@@ -13,8 +16,11 @@
     "tauri:build:deb": "tauri build --bundles deb",
     "test": "npm run validate:utf8 && vitest run",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "lint": "npm run validate:utf8 && eslint src vite.config.ts",
     "typecheck": "npm run validate:utf8 && tsc --noEmit",
-    "validate:utf8": "node scripts/validate-utf8.mjs"
+    "validate:comments": "node scripts/check-code-comments.mjs src src-tauri",
+    "validate:utf8": "node scripts/validate-utf8.mjs",
+    "validate": "npm run validate:utf8 && npm run validate:comments && npm run lint && npm run typecheck && npm test && npm run test:rust && npm run build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
@@ -22,11 +28,15 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@tauri-apps/cli": "^2.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.65.0",
     "vite": "^6.0.0",
     "vitest": "^3.0.0"
   }

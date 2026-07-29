@@ -7,11 +7,11 @@ O `local-agent-desktop` é o aplicativo desktop Linux do Local Agent. Ele consul
 ## Versões
 
 - `Node.js`: `22+` para executar os serviços locais.
-- `TypeScript`: `5.7`.
+- `TypeScript`: `5.9.3`.
 - `React`: `19`.
 - `Vite`: `6`.
 - `Tauri`: `2`.
-- `Rust`: `1.77+`.
+- `Rust`: `1.77+` (`rust-version` do crate).
 - `Sistema suportado/testado`: Linux com `systemd --user`.
 
 ## Stack principal
@@ -22,6 +22,7 @@ O `local-agent-desktop` é o aplicativo desktop Linux do Local Agent. Ele consul
 - `Rust` para comandos nativos, validação e controle das units.
 - `systemd --user` para supervisão dos serviços locais.
 - `Vitest` e testes nativos Rust para validação.
+- `ESLint` para validação estática do frontend TypeScript.
 
 ## Estrutura de pacotes
 
@@ -96,4 +97,5 @@ Na configuração inicial, o Desktop encontra o workspace, valida um Node.js 22+
 - O Desktop é um módulo Linux; o Hub continua sendo uma aplicação web independente.
 - As units geradas ficam em `~/.config/systemd/user`.
 - `LOCAL_AGENT_NODE` pode ser definido no `.env` do `worker` ou do `observer` quando o Node.js não estiver no `PATH` da aplicação.
+- O `package-lock.json` é versionado para reproduzir as dependências com `npm ci`.
 - Execute `npm run tauri:build` para gerar os pacotes AppImage e `.deb`.
