@@ -7,6 +7,11 @@ use std::{
 };
 use thiserror::Error;
 
+const START_SERVICE_SCRIPT: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/scripts/start-managed-service.sh"
+);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceId {
     Worker,
@@ -93,10 +98,10 @@ pub enum ServiceManagerError {
     ServiceDirectoryNotFound(String),
     #[error("Artefato compilado não encontrado: {0}. Execute npm run build no módulo.")]
     BuildArtifactNotFound(String),
-    #[error("Executável node não encontrado no PATH")]
-    NodeNotFound,
-    #[error("Node.js 22 ou superior é necessário para os serviços (versão encontrada: {0})")]
-    NodeVersionUnsupported(String),
+    #[error("Arquivo .nvmrc não encontrado: {0}")]
+    NodeVersionFileNotFound(String),
+    #[error("Script de inicialização do serviço não encontrado: {0}")]
+    ServiceStartScriptNotFound(String),
     #[error("Falha ao configurar os serviços: {0}")]
     Setup(String),
 }
@@ -144,73 +149,6 @@ fn interpret_state(active: &str) -> ServiceState {
         "failed" => ServiceState::Failed,
         _ => ServiceState::Failed,
     }
-}
-
-fn parse_node_major(version: &str) -> Option<u64> {
-    version
-        .trim()
-        .strip_prefix('v')?
-        .split('.')
-        .next()?
-        .parse()
-        .ok()
-}
-
-fn node_major_version(node: &Path) -> Result<u64, ServiceManagerError> {
-    let output = Command::new(node)
-        .arg("--version")
-        .output()
-        .map_err(|error| {
-            ServiceManagerError::Setup(format!("Não foi possível verificar o Node.js: {error}"))
-        })?;
-    if !output.status.success() {
-        return Err(ServiceManagerError::Setup(
-            "O executável Node.js não respondeu à verificação de versão.".to_owned(),
-        ));
-    }
-
-    let version = String::from_utf8_lossy(&output.stdout);
-    parse_node_major(&version).ok_or_else(|| {
-        ServiceManagerError::Setup(format!("Versão de Node.js inválida: {}", version.trim()))
-    })
-}
-
-fn env_file_value(path: &Path, key: &str) -> Option<String> {
-    fs::read_to_string(path)
-        .ok()?
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .find_map(|line| {
-            let (name, value) = line.split_once('=')?;
-            (name.trim() == key).then(|| value.trim().trim_matches(['"', '\'']).to_owned())
-        })
-}
-
-fn find_node_from_workspace(workspace: &Path) -> Option<PathBuf> {
-    let configured = [ServiceId::Worker, ServiceId::Observer]
-        .into_iter()
-        .map(|service| workspace.join(service.module_dir()).join(".env"))
-        .find_map(|path| env_file_value(&path, "LOCAL_AGENT_NODE"))
-        .map(PathBuf::from)
-        .filter(|path| path.is_file());
-
-    configured.or_else(find_node)
-}
-
-fn find_compatible_node(workspace: &Path) -> Result<PathBuf, ServiceManagerError> {
-    let node = env::var_os("LOCAL_AGENT_NODE")
-        .map(PathBuf::from)
-        .filter(|path| path.is_file())
-        .or_else(|| find_node_from_workspace(workspace))
-        .ok_or(ServiceManagerError::NodeNotFound)?;
-    let version = node_major_version(&node)?;
-    if version < 22 {
-        return Err(ServiceManagerError::NodeVersionUnsupported(format!(
-            "v{version}"
-        )));
-    }
-    Ok(node)
 }
 
 fn current_monotonic_micros() -> Option<u64> {
@@ -358,13 +296,6 @@ fn find_workspace() -> Option<PathBuf> {
     candidates.into_iter().find(|path| has_modules(path))
 }
 
-fn find_node() -> Option<PathBuf> {
-    let path = env::var_os("PATH")?;
-    env::split_paths(&path)
-        .map(|directory| directory.join("node"))
-        .find(|candidate| candidate.is_file())
-}
-
 fn unit_directory() -> Result<PathBuf, ServiceManagerError> {
     Ok(home_dir()?.join(".config/systemd/user"))
 }
@@ -387,23 +318,13 @@ fn unit_path_value(path: &Path) -> Result<String, ServiceManagerError> {
     Ok(value)
 }
 
-fn unit_content(
-    service: ServiceId,
-    workspace: &Path,
-    node: &Path,
-) -> Result<String, ServiceManagerError> {
+fn build_entrypoint(service: ServiceId, workspace: &Path) -> Result<PathBuf, ServiceManagerError> {
     let module = workspace.join(service.module_dir());
-    if !module.is_dir() {
-        return Err(ServiceManagerError::ServiceDirectoryNotFound(
-            module.display().to_string(),
-        ));
-    }
-
     let entrypoint_candidates: &[&str] = match service {
         ServiceId::Worker => &["dist/index.js"],
         ServiceId::Observer => &["dist/src/index.js", "dist/index.js"],
     };
-    let entrypoint = entrypoint_candidates
+    entrypoint_candidates
         .iter()
         .map(|candidate| module.join(candidate))
         .find(|candidate| candidate.is_file())
@@ -415,7 +336,42 @@ fn unit_content(
                     .collect::<Vec<_>>()
                     .join(" ou "),
             )
-        })?;
+        })
+}
+
+fn start_script_path() -> Result<PathBuf, ServiceManagerError> {
+    let path = PathBuf::from(START_SERVICE_SCRIPT);
+    if path.is_file() {
+        Ok(path)
+    } else {
+        Err(ServiceManagerError::ServiceStartScriptNotFound(
+            path.display().to_string(),
+        ))
+    }
+}
+
+fn node_version_file(service: ServiceId, workspace: &Path) -> Result<PathBuf, ServiceManagerError> {
+    let path = workspace.join(service.module_dir()).join(".nvmrc");
+    if path.is_file() {
+        Ok(path)
+    } else {
+        Err(ServiceManagerError::NodeVersionFileNotFound(
+            path.display().to_string(),
+        ))
+    }
+}
+
+fn unit_content(service: ServiceId, workspace: &Path) -> Result<String, ServiceManagerError> {
+    let module = workspace.join(service.module_dir());
+    if !module.is_dir() {
+        return Err(ServiceManagerError::ServiceDirectoryNotFound(
+            module.display().to_string(),
+        ));
+    }
+
+    let _node_version_file = node_version_file(service, workspace)?;
+    let _entrypoint = build_entrypoint(service, workspace)?;
+    let start_script = start_script_path()?;
 
     let env_file = module.join(".env");
     let env_line = env_file
@@ -425,12 +381,12 @@ fn unit_content(
         .unwrap_or_default();
 
     Ok(format!(
-        "[Unit]\nDescription={}\nAfter=network-online.target\nWants=network-online.target\nStartLimitIntervalSec=30\nStartLimitBurst=3\n\n[Service]\nType=simple\nWorkingDirectory={}\n{}ExecStart={} {}\nRestart=on-failure\nRestartSec=3\nTimeoutStopSec=15\nKillSignal=SIGTERM\n\n[Install]\nWantedBy=default.target\n",
+        "[Unit]\nDescription={}\nAfter=network-online.target\nWants=network-online.target\nStartLimitIntervalSec=30\nStartLimitBurst=3\n\n[Service]\nType=simple\nWorkingDirectory={}\n{}ExecStart=/bin/bash {} {}\nRestart=on-failure\nRestartSec=3\nTimeoutStopSec=15\nKillSignal=SIGTERM\n\n[Install]\nWantedBy=default.target\n",
         service.description(),
         unit_path_value(&module)?,
         env_line,
-        quote_exec_arg(node),
-        quote_exec_arg(&entrypoint),
+        quote_exec_arg(&start_script),
+        quote_exec_arg(&module),
     ))
 }
 
@@ -463,17 +419,13 @@ pub fn setup_status() -> ServicesSetupStatus {
 
 pub fn setup_services() -> Result<ServicesSetupStatus, ServiceManagerError> {
     let workspace = find_workspace().ok_or(ServiceManagerError::WorkspaceNotFound)?;
-    let node = find_compatible_node(&workspace)?;
     let directory = unit_directory()?;
     fs::create_dir_all(&directory)
         .map_err(|error| ServiceManagerError::Setup(error.to_string()))?;
 
     for service in [ServiceId::Worker, ServiceId::Observer] {
-        fs::write(
-            unit_path(service)?,
-            unit_content(service, &workspace, &node)?,
-        )
-        .map_err(|error| ServiceManagerError::Setup(error.to_string()))?;
+        fs::write(unit_path(service)?, unit_content(service, &workspace)?)
+            .map_err(|error| ServiceManagerError::Setup(error.to_string()))?;
     }
 
     CommandSystemctlRunner.run(&["daemon-reload"])?;
@@ -487,6 +439,7 @@ pub fn setup_services() -> Result<ServicesSetupStatus, ServiceManagerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     struct StubRunner {
         result: Result<String, ServiceManagerError>,
@@ -516,13 +469,6 @@ mod tests {
         assert_eq!(interpret_state("active"), ServiceState::Running);
         assert_eq!(interpret_state("inactive"), ServiceState::Stopped);
         assert_eq!(interpret_state("failed"), ServiceState::Failed);
-    }
-
-    #[test]
-    fn parses_node_major_version() {
-        assert_eq!(parse_node_major("v22.14.0\n"), Some(22));
-        assert_eq!(parse_node_major("v18.19.1"), Some(18));
-        assert_eq!(parse_node_major("node"), None);
     }
 
     #[test]
@@ -568,20 +514,34 @@ mod tests {
     }
 
     #[test]
-    fn maps_fixed_build_entrypoints() {
-        assert_eq!(
-            match ServiceId::Worker {
-                ServiceId::Worker => "dist/index.js",
-                ServiceId::Observer => "dist/src/index.js",
-            },
-            "dist/index.js"
-        );
-        assert_eq!(
-            match ServiceId::Observer {
-                ServiceId::Worker => "dist/index.js",
-                ServiceId::Observer => "dist/src/index.js",
-            },
-            "dist/src/index.js"
-        );
+    fn generates_systemd_units_that_use_nvm_wrapper() {
+        let base = std::env::temp_dir().join(format!(
+            "local-agent-desktop-unit-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock before unix epoch")
+                .as_nanos()
+        ));
+        let worker = base.join("local-agent-worker");
+        let observer = base.join("local-agent-observer");
+
+        std::fs::create_dir_all(&worker).expect("failed to create worker dir");
+        std::fs::create_dir_all(&observer).expect("failed to create observer dir");
+        std::fs::write(worker.join(".nvmrc"), "26.3.0\n").expect("failed to write worker nvmrc");
+        std::fs::write(observer.join(".nvmrc"), "26.3.0\n")
+            .expect("failed to write observer nvmrc");
+        std::fs::create_dir_all(worker.join("dist")).expect("failed to create worker dist dir");
+        std::fs::write(worker.join("dist/index.js"), "console.log('ok');\n")
+            .expect("failed to write worker dist file");
+
+        let unit = unit_content(ServiceId::Worker, &base).expect("failed to build unit");
+
+        assert!(unit.contains("ExecStart=/bin/bash"));
+        assert!(unit.contains("start-managed-service.sh"));
+        assert!(unit.contains(&worker.display().to_string()));
+        assert!(!unit.contains("dist/index.js"));
+
+        std::fs::remove_dir_all(&base).ok();
     }
 }

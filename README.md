@@ -30,14 +30,6 @@ O caminho do workspace pode ser informado explicitamente:
 export LOCAL_AGENT_WORKSPACE="$HOME/workspace/estudo/local-agent"
 ```
 
-Quando o Node.js não estiver no `PATH` da aplicação desktop, informe o executável explicitamente em `LOCAL_AGENT_NODE` no `.env` do `worker` ou do `observer`:
-
-```bash
-export LOCAL_AGENT_NODE="$(command -v node)"
-```
-
-O caminho precisa apontar para um arquivo executável real; curingas não são expandidos pelo aplicativo.
-
 Sem essa variável, o Desktop procura o workspace nos diretórios ancestrais do diretório atual e no caminho padrão acima.
 
 ## Desenvolvimento
@@ -55,7 +47,7 @@ Para executar a aplicação Tauri em modo desktop:
 npm run tauri:dev
 ```
 
-Na primeira execução, compile os módulos `worker` e `observer`. Depois, use **Configurar serviços** na interface para gerar as units em `~/.config/systemd/user`.
+Na primeira execução, instale as dependências dos módulos `worker` e `observer`. Depois, use **Configurar serviços** na interface para gerar as units em `~/.config/systemd/user`.
 
 ## Validação e build
 
@@ -79,7 +71,7 @@ O aplicativo usa somente estas units:
 - `local-agent-worker.service`
 - `local-agent-observer.service`
 
-As units são supervisionadas pelo `systemd --user`, configuradas para reiniciar após falhas e habilitadas para iniciar com a sessão do usuário. As APIs dos serviços devem permanecer vinculadas a `127.0.0.1`.
+As units são supervisionadas pelo `systemd --user`, configuradas para reiniciar após falhas e habilitadas para iniciar com a sessão do usuário. Antes de subir cada serviço, o launcher gerado pelo Desktop lê o `.nvmrc` do módulo correspondente e ativa a versão correta do Node com `nvm`. As APIs dos serviços devem permanecer vinculadas a `127.0.0.1`.
 
 ## Segurança
 

@@ -81,7 +81,7 @@ O aplicativo não executa shell genérico, não recebe paths de execução da in
 5. Executa somente `start`, `stop` ou `restart` na unit selecionada.
 6. Abre o Hub de produção em `https://local-agent-view.pages.dev/`.
 
-Na configuração inicial, o Desktop encontra o workspace, valida um Node.js 22+ e grava o caminho absoluto desse runtime nas units. Isso evita que o `systemd --user` escolha acidentalmente um Node.js antigo do sistema.
+Na configuração inicial, o Desktop encontra o workspace, valida a presença dos `.nvmrc` dos módulos e grava units que chamam um wrapper interno. Esse wrapper carrega `nvm`, ativa a versão declarada pelo módulo e só então executa `npm start`, evitando que o `systemd --user` suba o serviço com um Node.js antigo do sistema.
 
 ## Segurança
 
@@ -96,6 +96,6 @@ Na configuração inicial, o Desktop encontra o workspace, valida um Node.js 22+
 
 - O Desktop é um módulo Linux; o Hub continua sendo uma aplicação web independente.
 - As units geradas ficam em `~/.config/systemd/user`.
-- `LOCAL_AGENT_NODE` pode ser definido no `.env` do `worker` ou do `observer` quando o Node.js não estiver no `PATH` da aplicação.
+- Cada módulo mantém seu próprio `.nvmrc`, e o Desktop usa esse arquivo para ativar a versão correta do Node antes de iniciar o serviço.
 - O `package-lock.json` é versionado para reproduzir as dependências com `npm ci`.
 - Execute `npm run tauri:build` para gerar os pacotes AppImage e `.deb`.
